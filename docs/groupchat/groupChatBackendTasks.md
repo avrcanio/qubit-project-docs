@@ -1,7 +1,5 @@
 # Group Chat - Backend Tasks (Django + Postgres + Redis)
 
-Canonical copy (cross-team): `qubit-project-docs/docs/groupchat/groupChatBackendTasks.md`
-
 Datum: 2026-02-08
 Scope: User service (Django) + Postgres (durable) + Redis (ephemeral/signaling)
 Princip:
@@ -9,6 +7,78 @@ Princip:
 - Postgres je durable source-of-truth za *group management* (rijetke promjene).
 - Redis je za *runtime/signaling* (ceste, TTL-based, evictable).
 - Nema centralne povijesti poruka; novi clan ne dobiva stare poruke (no-backfill).
+
+## Task List
+
+- [x] Postgres modeli + migracije: `Group` i `GroupMember` (indexi/constrainti/semantika aktivnog clana)
+- [x] Authz matrica + normalizacija: `qid` uppercase, `groupId` validacija, centralni permission helper
+- [x] Management API (JWT): create/add/accept/remove/leave/rename/delete + role endpointi
+- [x] Snapshot API: `GET /api/group/snapshot` (sinceRevision/304 ili unchanged flag)
+- [x] Realtime wake: MQTT wake (preko `chat_control.services.mqtt.publish_wake`) na aktivne clanove
+- [~] Observability + rate limit: dodani JSON logovi + metrics counteri; rate-limit je uveden samo za dio endpointa
+- [~] API docs (drf-spectacular): endpointi su u OpenAPI; `@extend_schema` je dodan za dio endpointa (treba dopuniti za role/delete/rename/leave)
+
+## Milestones
+
+### M2: Runtime send-intent koristi Postgres kanon (remove client-supplied members)
+
+Cilj: runtime endpoints (posebno `POST /api/group/send-intent/`) ne smiju ovisiti o `memberQids` iz requesta. Canonical clanstvo/accepted/roles dolaze iz Postgresa, Redis se koristi samo za signaling (directjob/webrtc/ack).
+
+Definition of done:
+- `POST /api/group/send-intent/`:
+  - ignorira `memberQids` iz requesta (ili ih potpuno ukloni iz schema)
+  - canonical members cita iz Postgresa (`GroupMember`, aktivni + joined)
+  - enforce max 24
+  - enforce accepted gating (ako ostaje): samo accepted clanovi dobivaju wake/directjob
+  - actor mora biti aktivni clan (inace 403)
+- Testovi:
+  - “memberQids spoof” ne moze prosiriti grupu
+  - removed/left user dobije 403
+  - soft-deleted group -> 410/404 (po odluci), bez side-effecta u Redis-u
+- Observability:
+  - log + metric kad se detektira mismatch (request memberQids != canonical) ako request polje jos postoji
+
+## Implementirano (2026-02-08)
+
+Durable modeli + migracije (Postgres):
+- Modeli: `qubit/user/backend/chat_control/models.py` (`Group`, `GroupMember`)
+- Migracije: `qubit/user/backend/chat_control/migrations/0006_groups_postgres.py` (+ auto `0007_*` za postojece promjene u app-u)
+
+Kanonski management endpointi (JWT, Postgres-backed) u `qubit/user/backend/chat_control/views.py` + rute u `qubit/user/backend/chat_control/urls.py`:
+- `POST /api/group/create/`
+- `POST /api/group/add/`
+- `POST /api/group/accept-invite/` (namjerno odvojeno od Redis runtime `POST /api/group/accept/`)
+- `POST /api/group/remove/`
+- `POST /api/group/leave/`
+- `POST /api/group/rename/`
+- `POST /api/group/delete/`
+- Role:
+  - `POST /api/group/role/promote-admin/`
+  - `POST /api/group/role/demote-admin/`
+  - `POST /api/group/role/promote-superadmin/`
+  - `POST /api/group/role/demote-superadmin/`
+
+Snapshot endpoint (kanonski read):
+- `GET /api/group/snapshot` i `GET /api/group/snapshot/` (sinceRevision -> `unchanged:true` kada je revision isti)
+
+Wake/signaling:
+- Na svaki management write koji mijenja state radi wake: event `group.updated` ili `group.deleted` (preko MQTT topic-a `qubit/{qid}/chat/wake`).
+
+OpenAPI docs:
+- `/api/schema/` + `/api/docs/` vec postoje i novi endpointi se pojavljuju u schemi.
+
+## Prijedlozi (što još treba / rizici)
+
+- Prebaciti runtime flow da koristi Postgres kanon:
+  - `POST /api/group/send-intent/` trenutno je Redis-kanon i ovisi o `memberQids` iz requesta (client-supplied). To treba promijeniti da clanove cita iz Postgresa (`GroupMember`) i koristi Redis samo za per-message authz window / signaling queue.
+- Dodati testove minimalno za authz edge-caseove:
+  - ADMIN remove pravilo (`added_by_qid`), OWNER leave transfer, demote-superadmin samo owner, soft delete behaviour, snapshot authz.
+- Rate-limit dovrsiti konzistentno:
+  - trenutno je uveden za create/add/remove; dodati i za rename/delete/leave/role.
+- Snapshot caching/transport:
+  - opcija: vratiti HTTP 304 kad je `sinceRevision == revision` (trenutno vraca 200 + `unchanged:true`).
+- Validacija `groupId`:
+  - trenutno je regex; ako zelis striktno UUID format, promijeniti validaciju i/ili koristiti UUIDField.
 
 ## 0) Terminologija
 
@@ -105,6 +175,21 @@ Napomena:
 - Svi write endpointi bumpaju `groups.revision` (atomicno).
 - Svi endpointi moraju provjeriti `groups.deleted_at IS NULL` (osim ako vracamo “gone”).
 
+### 3.0 API Docs (OpenAPI)
+
+Zadatak:
+- Izgenerirati i hostati OpenAPI schema + UI docs za sve group chat endpoint-e.
+
+Stack:
+- Koristiti `drf-spectacular` (vec je u `requirements.txt` i `INSTALLED_APPS`).
+
+Endpointi (preporuka):
+- `GET /api/schema/` (OpenAPI JSON)
+- `GET /api/docs/` (Swagger UI)
+
+Napomena:
+- Za svaki endpoint dodati request/response primjere (iz ovog dokumenta) preko `@extend_schema`.
+
 ### 3.1 Create group
 
 `POST /api/group/create/`
@@ -131,7 +216,7 @@ Napomena:
 
 ### 3.3 Accept invite
 
-`POST /api/group/accept/` (ovo vec postoji u Redis-only varijanti; kasnije prebaciti na Postgres kanon)
+`POST /api/group/accept-invite/` (Redis-only `POST /api/group/accept/` ostaje za runtime gating; ovaj endpoint je Postgres-kanon)
 - Body: `groupId`
 - Efekt:
   - provjeri da postoji `group_members` invite za caller
