@@ -1,5 +1,7 @@
 # Group Chat - Backend Tasks (Django + Postgres + Redis)
 
+Canonical copy (cross-team): `qubit-project-docs/docs/groupchat/groupChatBackendTasks.md`
+
 Datum: 2026-02-08
 Scope: User service (Django) + Postgres (durable) + Redis (ephemeral/signaling)
 Princip:
@@ -265,4 +267,3 @@ Faza B (prebacivanje kanona):
 - Client prvo pocinje koristiti snapshot kao source-of-truth.
 - Management write endpointi postaju jedini nacin izmjene membership/roles.
 - Redis `group:*` ostaje samo cache ili se gasi.
-

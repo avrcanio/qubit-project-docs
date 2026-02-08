@@ -1,5 +1,7 @@
 # Group Chat (P2P-first) - Spec + Task Plan (qubit.chat)
 
+Canonical copy (cross-team): `qubit-project-docs/docs/groupchat/groupChat.md`
+
 Datum: 2026-02-07
 Updated: 2026-02-08
 Scope: Android app + User Service (Django)

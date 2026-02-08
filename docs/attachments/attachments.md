@@ -1,5 +1,7 @@
 # Attachments (Global Subsystem) - Plan + Task List
 
+Canonical copy (cross-team): `qubit-project-docs/docs/attachments/attachments.md`
+
 Datum: 2026-02-08
 Scope: Android app + User Service (Django)
 Princip: backend ne vidi plaintext; ako postoji centralni storage, sprema se samo ciphertext.
@@ -72,4 +74,3 @@ Cijena:
 
 - Grupa ne smije imati “svoj” attachment kod.
 - Group send samo definira *kome* ide poruka; attachment subsystem definira *kako* ide file payload.
-
