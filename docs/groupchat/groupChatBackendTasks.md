@@ -24,6 +24,8 @@ Princip:
 
 Cilj: runtime endpoints (posebno `POST /api/group/send-intent/`) ne smiju ovisiti o `memberQids` iz requesta. Canonical clanstvo/accepted/roles dolaze iz Postgresa, Redis se koristi samo za signaling (directjob/webrtc/ack).
 
+Status: DONE (2026-02-08)
+
 Definition of done:
 - `POST /api/group/send-intent/`:
   - ignorira `memberQids` iz requesta (ili ih potpuno ukloni iz schema)
@@ -37,6 +39,12 @@ Definition of done:
   - soft-deleted group -> 410/404 (po odluci), bez side-effecta u Redis-u
 - Observability:
   - log + metric kad se detektira mismatch (request memberQids != canonical) ako request polje jos postoji
+
+Napomena (implementacija):
+- Runtime endpointi sada koriste Postgres kao kanon:
+  - `POST /api/group/send-intent/`: ignorira `memberQids` (back-compat, optional), clanove cita iz `GroupMember`
+  - `GET /api/group/status`, `GET /api/group/members`, `POST /api/group/accept/`: prebaceni na Postgres kanon radi konzistentnosti
+- Observability: dodan metric `chat.group.send_intent.memberqids_mismatch_total` + JSON log event.
 
 ## Implementirano (2026-02-08)
 
@@ -69,8 +77,6 @@ OpenAPI docs:
 
 ## Prijedlozi (što još treba / rizici)
 
-- Prebaciti runtime flow da koristi Postgres kanon:
-  - `POST /api/group/send-intent/` trenutno je Redis-kanon i ovisi o `memberQids` iz requesta (client-supplied). To treba promijeniti da clanove cita iz Postgresa (`GroupMember`) i koristi Redis samo za per-message authz window / signaling queue.
 - Dodati testove minimalno za authz edge-caseove:
   - ADMIN remove pravilo (`added_by_qid`), OWNER leave transfer, demote-superadmin samo owner, soft delete behaviour, snapshot authz.
 - Rate-limit dovrsiti konzistentno:
