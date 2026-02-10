@@ -79,8 +79,6 @@ OpenAPI docs:
 
 - Dodati testove minimalno za authz edge-caseove:
   - ADMIN remove pravilo (`added_by_qid`), OWNER leave transfer, demote-superadmin samo owner, soft delete behaviour, snapshot authz.
-- Rate-limit dovrsiti konzistentno:
-  - trenutno je uveden za create/add/remove; dodati i za rename/delete/leave/role.
 - Snapshot caching/transport:
   - opcija: vratiti HTTP 304 kad je `sinceRevision == revision` (trenutno vraca 200 + `unchanged:true`).
 - Validacija `groupId`:
