@@ -15,8 +15,8 @@ Princip:
 - [x] Management API (JWT): create/add/accept/remove/leave/rename/delete + role endpointi
 - [x] Snapshot API: `GET /api/group/snapshot` (sinceRevision/304 ili unchanged flag)
 - [x] Realtime wake: MQTT wake (preko `chat_control.services.mqtt.publish_wake`) na aktivne clanove
-- [~] Observability + rate limit: dodani JSON logovi + metrics counteri; rate-limit je uveden samo za dio endpointa
-- [~] API docs (drf-spectacular): endpointi su u OpenAPI; `@extend_schema` je dodan za dio endpointa (treba dopuniti za role/delete/rename/leave)
+- [x] Observability + rate limit: dodani JSON logovi + metrics counteri; rate-limit pokriva sve management endpoint-e
+- [x] API docs (drf-spectacular): endpointi su u OpenAPI; `@extend_schema` pokriva i role/delete/rename/leave
 
 ## Milestones
 
@@ -358,3 +358,690 @@ Faza B (prebacivanje kanona):
 - Client prvo pocinje koristiti snapshot kao source-of-truth.
 - Management write endpointi postaju jedini nacin izmjene membership/roles.
 - Redis `group:*` ostaje samo cache ili se gasi.
+
+---
+
+## 10) OpenAPI schema (group endpointi)
+
+Blok je iz `/api/schema/` nakon rebuilda user containera.
+
+```yaml
+/api/group/accept-invite/:
+  post:
+    operationId: group_accept_invite_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Accept invite (durable)
+    tags:
+    - group
+/api/group/accept/:
+  post:
+    description: Mark the authenticated user as accepted for a group. Backend will only fan-out signaling/wake to accepted members.
+    operationId: group_accept_create
+    requestBody:
+      content:
+        application/json:
+          examples:
+            AcceptRequest:
+              summary: Accept request
+              value:
+                chatId: g123
+          schema:
+            $ref: '#/components/schemas/GroupAccept'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupAccept'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupAccept'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            examples:
+              Accepted:
+                value:
+                  accepted: true
+                  acceptedCount: 2
+                  chatId: g123
+                  ok: true
+            schema:
+              $ref: '#/components/schemas/GroupAcceptResponse'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Accept group invite
+    tags:
+    - group
+/api/group/add/:
+  post:
+    operationId: group_add_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupAddMember'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupAddMember'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupAddMember'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+      '409':
+        description: Conflict
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Invite member (durable)
+    tags:
+    - group
+/api/group/create/:
+  post:
+    description: Create a durable group in Postgres and invite initial members. Owner is the caller.
+    operationId: group_create_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupCreate'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupCreate'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupCreate'
+      required: true
+    responses:
+      '201':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Create group (durable)
+    tags:
+    - group
+/api/group/delete/:
+  post:
+    operationId: group_delete_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Delete group (durable, soft delete)
+    tags:
+    - group
+/api/group/leave/:
+  post:
+    operationId: group_leave_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupId'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+      '409':
+        description: Conflict
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Leave group (durable)
+    tags:
+    - group
+/api/group/members:
+  get:
+    description: Return canonical member list for a chat. `updatedAt` is epoch milliseconds.
+    operationId: group_members_retrieve
+    parameters:
+    - in: query
+      name: chatId
+      required: true
+      schema:
+        type: string
+    responses:
+      '200':
+        content:
+          application/json:
+            examples:
+              GroupMembers:
+                summary: Group members
+                value:
+                  chatId: g123
+                  members:
+                  - B
+                  - C
+                  - D
+                  updatedAt: 1730000000000
+            schema:
+              $ref: '#/components/schemas/GroupMembersResponse'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Get group members
+    tags:
+    - group
+/api/group/remove/:
+  post:
+    operationId: group_remove_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupRemoveMember'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupRemoveMember'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupRemoveMember'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+      '409':
+        description: Conflict
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Remove member (durable)
+    tags:
+    - group
+/api/group/rename/:
+  post:
+    operationId: group_rename_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupRename'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupRename'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupRename'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Rename group (durable)
+    tags:
+    - group
+/api/group/role/demote-admin/:
+  post:
+    operationId: group_role_demote_admin_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+      '409':
+        description: Conflict
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Demote member to MEMBER (durable)
+    tags:
+    - group
+/api/group/role/demote-superadmin/:
+  post:
+    operationId: group_role_demote_superadmin_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+      '409':
+        description: Conflict
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Demote SUPER_ADMIN to ADMIN (durable)
+    tags:
+    - group
+/api/group/role/promote-admin/:
+  post:
+    operationId: group_role_promote_admin_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+      '409':
+        description: Conflict
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Promote member to ADMIN (durable)
+    tags:
+    - group
+/api/group/role/promote-superadmin/:
+  post:
+    operationId: group_role_promote_superadmin_create
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupRoleChange'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupMgmtOk'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+      '409':
+        description: Conflict
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Promote member to SUPER_ADMIN (durable)
+    tags:
+    - group
+/api/group/send-intent/:
+  post:
+    description: Fan-out send intent to group recipients using Postgres-canonical membership, Redis directjob authz windows, and MQTT wake.
+    operationId: group_send_intent_create
+    requestBody:
+      content:
+        application/json:
+          examples:
+            GroupSendIntentRequest:
+              summary: Group send intent request
+              value:
+                chatId: g12345678
+                messageId: m-uuid
+                ttlSeconds: 120
+          schema:
+            $ref: '#/components/schemas/GroupSendIntent'
+        application/x-www-form-urlencoded:
+          schema:
+            $ref: '#/components/schemas/GroupSendIntent'
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/GroupSendIntent'
+      required: true
+    responses:
+      '200':
+        content:
+          application/json:
+            examples:
+              GroupSendIntentResponse:
+                summary: Group send intent response
+                value:
+                  chatId: g12345678
+                  messageId: m-uuid
+                  ok: true
+                  recipients: 3
+            schema:
+              $ref: '#/components/schemas/GroupSendIntentResponse'
+        description: ''
+      '201':
+        content:
+          application/json:
+            examples:
+              GroupSendIntentResponse:
+                summary: Group send intent response
+                value:
+                  chatId: g12345678
+                  messageId: m-uuid
+                  ok: true
+                  recipients: 3
+            schema:
+              $ref: '#/components/schemas/GroupSendIntentResponse'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '409':
+        description: Conflict
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Announce a group message intent
+    tags:
+    - group
+/api/group/snapshot:
+  get:
+    operationId: group_snapshot_retrieve
+    parameters:
+    - in: query
+      name: groupId
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: sinceRevision
+      schema:
+        type: integer
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupSnapshot'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Group snapshot (durable)
+    tags:
+    - group
+/api/group/snapshot/:
+  get:
+    operationId: group_snapshot_retrieve_2
+    parameters:
+    - in: query
+      name: groupId
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: sinceRevision
+      schema:
+        type: integer
+    responses:
+      '200':
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupSnapshot'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+      '404':
+        description: Not found
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Group snapshot (durable)
+    tags:
+    - group
+/api/group/status:
+  get:
+    description: Return per-recipient authz-window state for a group message. In WebRTC-only flow there is no READY step; state reflects whether a directjob context is present.
+    operationId: group_status_retrieve
+    parameters:
+    - in: query
+      name: chatId
+      required: true
+      schema:
+        type: string
+    - in: query
+      name: messageId
+      required: true
+      schema:
+        type: string
+    responses:
+      '200':
+        content:
+          application/json:
+            examples:
+              GroupStatus:
+                summary: Group status
+                value:
+                  messageId: m-uuid
+                  recipients:
+                  - state: INVITED
+                    toQid: B
+                  - expiresAtMs: 1730000000000
+                    state: WAITING_READY
+                    toQid: C
+            schema:
+              $ref: '#/components/schemas/GroupStatusResponse'
+        description: ''
+      '400':
+        description: Validation error
+      '403':
+        description: Forbidden
+    security:
+    - tokenAuth: []
+    - jwtAuth: []
+    - cookieAuth: []
+    - tokenAuth: []
+    summary: Get group message status per recipient
+    tags:
+    - group
+```
