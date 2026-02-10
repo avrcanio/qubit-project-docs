@@ -14,6 +14,7 @@ Princip:
 - [x] Authz matrica + normalizacija: `qid` uppercase, `groupId` validacija, centralni permission helper
 - [x] Management API (JWT): create/add/accept/remove/leave/rename/delete + role endpointi
 - [x] Snapshot API: `GET /api/group/snapshot` (sinceRevision/304 ili unchanged flag)
+- [x] Key Directory u snapshotu (identity_pub_key + fingerprint + updated_at)
 - [x] Realtime wake: MQTT wake (preko `chat_control.services.mqtt.publish_wake`) na aktivne clanove
 - [x] Observability + rate limit: dodani JSON logovi + metrics counteri; rate-limit pokriva sve management endpoint-e
 - [x] API docs (drf-spectacular): endpointi su u OpenAPI; `@extend_schema` pokriva i role/delete/rename/leave
@@ -75,10 +76,15 @@ Wake/signaling:
 OpenAPI docs:
 - `/api/schema/` + `/api/docs/` vec postoje i novi endpointi se pojavljuju u schemi.
 
+Key Directory:
+- `UserIdentityKey` (TOFU) se puni iz contact request/accept flowa.
+- `GET /api/group/snapshot` vraca `identity_pub_key`, `pubkey_fingerprint`, `pubkey_updated_at` po clanu.
+
+Testovi:
+- Dodani authz edge-case testovi (ADMIN remove samo svoje, owner leave auto-transfer, demote-superadmin samo owner, snapshot authz).
+
 ## Prijedlozi (što još treba / rizici)
 
-- Dodati testove minimalno za authz edge-caseove:
-  - ADMIN remove pravilo (`added_by_qid`), OWNER leave transfer, demote-superadmin samo owner, soft delete behaviour, snapshot authz.
 - Snapshot caching/transport:
   - opcija: vratiti HTTP 304 kad je `sinceRevision == revision` (trenutno vraca 200 + `unchanged:true`).
 - Validacija `groupId`:
