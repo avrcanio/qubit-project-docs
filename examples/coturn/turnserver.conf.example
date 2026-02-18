@@ -1,0 +1,32 @@
+# Core identity
+realm=turn.example.com
+server-name=turn.example.com
+
+# Auth
+fingerprint
+lt-cred-mech
+use-auth-secret
+# Put value from mounted secret file or env substitution during startup.
+static-auth-secret=CHANGE_ME
+
+# Listener
+listening-ip=0.0.0.0
+listening-port=3478
+
+# Relay range
+min-port=49160
+max-port=49200
+
+# Public IP (set when behind NAT)
+# external-ip=203.0.113.10
+
+# Logging
+no-cli
+verbose
+
+# Optional TURN-TLS (turns:)
+# tls-listening-port=5349
+# cert=/certs/turn.example.com.crt
+# pkey=/certs/turn.example.com.key
+# no-tlsv1
+# no-tlsv1_1
