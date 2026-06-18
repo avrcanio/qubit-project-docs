@@ -6,6 +6,7 @@ Ovaj dokument opisuje trenutno aktivnu Docker postavku za Headscale iz projekta 
 
 - Compose: `docker-compose.yml`
 - Headscale config: `config/config.yaml`
+- Exit node: `exitnode/docker-compose.yml` (zasebni stack, isti server)
 - Okruzenje: `.env`
 
 ## Docker Compose pregled
@@ -15,6 +16,13 @@ Ovaj dokument opisuje trenutno aktivnu Docker postavku za Headscale iz projekta 
 1. `headscale`
 2. `nginx-note`
 3. `register-ui`
+
+### Exit node (zasebni compose u `exitnode/`)
+
+- Container: `tailscale-exitnode`
+- Hostname u tailnetu: `qubit-fi` (`100.64.0.2`)
+- Pokretanje: `cd /opt/stacks/headscale/exitnode && docker compose up -d`
+- State: `./exitnode/tailscale-state/` (bind mount, nije u gitu)
 
 ### Headscale servis
 

@@ -2,9 +2,9 @@
 
 Ovaj dokument opisuje kako podici Exit Node (Tailscale client) koji se spaja na Headscale control server, i kako ga odobriti na Headscale strani.
 
-Referentna implementacija za server-side compose zivi u repou:
+Referentna implementacija zivi u Headscale stacku:
 
-- `avrcanio/dedicated-server-exitnode` (`docker-compose.yml`, `.env.example`)
+- `/opt/stacks/headscale/exitnode/` (`docker-compose.yml`, `.env.example`, `README.md`)
 
 ## Preduvjeti
 
@@ -15,9 +15,8 @@ Referentna implementacija za server-side compose zivi u repou:
 
 ## Quick start (na exit node serveru)
 
-U `dedicated-server-exitnode` repou:
-
 ```bash
+cd /opt/stacks/headscale/exitnode
 cp .env.example .env
 # upisi TS_AUTHKEY u .env
 
@@ -28,57 +27,43 @@ docker logs -f tailscale-exitnode
 Napomena:
 
 - `.env` sadrzi tajnu i ne ide u git; koristi `.env.example` kao template.
-- `TS_EXTRA_ARGS` vec ukljucuje `--advertise-exit-node` i `--accept-dns=false`.
+- Compose ukljucuje `--advertise-exit-node` i `--accept-dns=false`.
 
 ## Odobravanje exit node ruta (na Headscale serveru)
 
 Exit node setup je "double opt-in": node mora oglasiti exit-node rute, a control server mora odobriti/enable te rute.
 
-Ako koristis noviji Headscale CLI (routes commands):
-
 ```bash
-headscale routes list
-# pronadji rute 0.0.0.0/0 i/ili ::/0 za exit node
-headscale routes enable -r <ROUTE_ID>
+docker exec headscale headscale nodes list-routes
+docker exec headscale headscale nodes approve-routes --identifier <NODE_ID> --routes 0.0.0.0/0,::/0
 ```
 
-Ako koristis Headscale varijantu s "nodes list-routes":
+## IP forwarding (na exit node serveru)
 
-```bash
-headscale nodes list-routes
-headscale nodes approve-routes --identifier <NODE_ID> --routes 0.0.0.0/0
-```
-
-## IP forwarding + NAT (na exit node serveru)
-
-Da bi exit node stvarno routao internet promet, moras ukljuciti IP forwarding i NAT.
-
-IPv4 forwarding (privremeno, do restarta):
-
-```bash
-sysctl -w net.ipv4.ip_forward=1
-```
-
-Persist (preko `/etc/sysctl.d/`):
+Compose postavlja `net.ipv4.ip_forward=1` unutar kontejnera. Na hostu preporuceno persistirati:
 
 ```bash
 printf '%s\n' 'net.ipv4.ip_forward=1' | sudo tee /etc/sysctl.d/99-qubit-exitnode.conf
 sudo sysctl --system
 ```
 
-NAT (iptables primjer, prilagodi `eth0` ako ti je WAN interface drugaciji):
-
-```bash
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-```
-
 ## Klijent: koristenje exit node-a
 
-Na klijentu (npr. Android ili Linux) odaberi exit node u aplikaciji ili:
+Na klijentu (npr. Windows) odaberi exit node u aplikaciji ili:
 
 ```bash
-tailscale set --exit-node <EXITNODE_HOSTNAME>
+tailscale set --exit-node qubit-fi
 ```
 
 Za provjeru, provjeri javni IP na klijentu: treba postati IP exit node servera.
 
+## Windows: spajanje na Headscale
+
+1. Instaliraj Tailscale for Windows
+2. U PowerShell:
+
+```powershell
+tailscale up --login-server=https://hs-control.qubitsecured.online --authkey=<PREAUTH_KEY>
+```
+
+3. Za exit node: odaberi `qubit-fi` u Tailscale aplikaciji

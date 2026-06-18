@@ -5,12 +5,10 @@
 - [ ] Docker: instaliran Docker + Compose
 - [ ] TUN: postoji `/dev/net/tun`
 - [ ] Headscale: kreiran preauth key za exit node (pozeljno ogranicen/tagged)
-- [ ] Repo: deployan `avrcanio/dedicated-server-exitnode` na server
+- [ ] Stack: deployan `/opt/stacks/headscale/exitnode/` na serveru
 - [ ] Secrets: `.env` popunjen (TS_AUTHKEY), `.env` nije commit-an
 - [ ] Start: `docker compose up -d` i container radi (`docker ps`)
 - [ ] Join: node se vidi u Headscale (`headscale nodes list`)
 - [ ] Approve routes: exit-node rute su enabled (Headscale routes/nodes routes approve)
-- [ ] Forwarding: `net.ipv4.ip_forward=1` (persistirano)
-- [ ] NAT: MASQUERADE na WAN interfacu (persistirano preko firewall/iptables-persistent)
+- [ ] Forwarding: `net.ipv4.ip_forward=1` (persistirano na hostu)
 - [ ] Test: klijent postavi exit node i provjeri public IP
-
